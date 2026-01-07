@@ -13,7 +13,7 @@ Complete rewrite in TypeScript, forked from [websocket-json-stream](https://gith
 - **SockJS Adapter** - Built-in support for SockJS with HTTP fallback transport
 - **Zero Dependencies** - Only peer dependencies for WebSocket libraries
 - **Type-Safe Messaging** - Generic types for compile-time message validation
-- **Browser WebSocket Support** - Works with native browser WebSocket API
+- **SockJS Support** - Works with SockJS for HTTP fallback transport
 - **Auto-Detection** - Automatic adapter detection for different WebSocket implementations
 
 ### 🔧 Technical Changes

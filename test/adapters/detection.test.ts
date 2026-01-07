@@ -149,6 +149,17 @@ describe('Type Detection', () => {
         }
         expect(() => adaptWebSocket(unsupported as never, 'auto')).toThrow('Unsupported WebSocket type')
       })
+
+      it('should throw for unknown adapter type', () => {
+        const mockWs = {
+          readyState: 1,
+          send: vi.fn(),
+          close: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }
+        expect(() => adaptWebSocket(mockWs, 'unknown' as never)).toThrow('Unknown adapter type')
+      })
     })
   })
 })

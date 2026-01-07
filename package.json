@@ -1,7 +1,7 @@
 {
   "name": "@an-epiphany/websocket-json-stream",
   "version": "1.0.0",
-  "description": "A TypeScript Duplex stream wrapper for WebSocket with automatic JSON serialization. Supports ws, browser WebSocket, and SockJS.",
+  "description": "A TypeScript Duplex stream wrapper for WebSocket with automatic JSON serialization. Supports ws and SockJS.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

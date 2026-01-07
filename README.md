@@ -8,7 +8,7 @@
 
 A Node.js Duplex stream wrapper for WebSocket connections with automatic JSON serialization.
 
-Works with Node.js WebSockets (ws), browser WebSockets, and **SockJS**.
+Works with Node.js WebSockets (ws) and **SockJS**.
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
@@ -54,20 +54,21 @@ wss.on('connection', (ws) => {
 })
 ```
 
-### Client
+### Client (Native WebSocket)
 
 ```typescript
-import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 import { WebSocket } from 'ws'
 
 const ws = new WebSocket('ws://localhost:8080')
-const stream = new WebSocketJSONStream(ws)
 
-stream.on('data', (data) => {
-  console.log('Received:', data)
+ws.on('open', () => {
+  ws.send(JSON.stringify({ message: 'Hello!' }))
 })
 
-stream.write({ message: 'Hello!' })
+ws.on('message', (data) => {
+  const message = JSON.parse(data.toString())
+  console.log('Received:', message)
+})
 ```
 
 ## Type-Safe Messaging
@@ -126,14 +127,18 @@ httpServer.listen(8080)
 ### Client (sockjs-client)
 
 ```typescript
-import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 import SockJS from 'sockjs-client'
 
-// SockJS client is WebSocket-compatible, no adapter needed
 const sock = new SockJS('http://localhost:8080/sockjs')
-const stream = new WebSocketJSONStream(sock)
 
-stream.write({ message: 'Hello via SockJS!' })
+sock.onopen = () => {
+  sock.send(JSON.stringify({ message: 'Hello via SockJS!' }))
+}
+
+sock.onmessage = (e) => {
+  const message = JSON.parse(e.data)
+  console.log('Received:', message)
+}
 ```
 
 ### Why SockJS?
@@ -141,7 +146,7 @@ stream.write({ message: 'Hello via SockJS!' })
 | Scenario | Solution |
 |----------|----------|
 | WebSocket blocked by firewall/proxy | Auto-fallback to XHR streaming |
-| Legacy browser support | Falls back to long-polling |
+| Corporate networks | Falls back to long-polling |
 | Unreliable WebSocket connections | Multiple transport options |
 
 ## API Reference

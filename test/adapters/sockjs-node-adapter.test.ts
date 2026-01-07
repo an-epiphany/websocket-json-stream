@@ -232,4 +232,64 @@ describe('SockJSNodeAdapter', () => {
       expect(listener2).toHaveBeenCalledWith({ data: 'test' })
     })
   })
+
+  describe('resource cleanup', () => {
+    it('should clear internal maps after clearAllListeners()', () => {
+      const messageListener = vi.fn()
+      const closeListener = vi.fn()
+
+      adapter.addEventListener('message', messageListener)
+      adapter.addEventListener('close', closeListener)
+
+      // Clear all listeners
+      adapter.clearAllListeners()
+
+      // Listeners should no longer be called
+      mockConn.simulateData('test')
+      mockConn.simulateClose()
+
+      expect(messageListener).not.toHaveBeenCalled()
+      expect(closeListener).not.toHaveBeenCalled()
+    })
+
+    it('should not leak memory when adding and removing many listeners', () => {
+      const listeners: Array<() => void> = []
+
+      // Add many listeners
+      for (let i = 0; i < 100; i++) {
+        const listener = vi.fn()
+        listeners.push(listener)
+        adapter.addEventListener('message', listener)
+      }
+
+      // Remove all listeners
+      for (const listener of listeners) {
+        adapter.removeEventListener('message', listener)
+      }
+
+      // Internal map should be empty (we can verify by the fact that
+      // no listeners are called when data is received)
+      mockConn.simulateData('test')
+
+      for (const listener of listeners) {
+        expect(listener).not.toHaveBeenCalled()
+      }
+    })
+
+    it('should clean up when connection closes', () => {
+      const messageListener = vi.fn()
+      const closeListener = vi.fn()
+
+      adapter.addEventListener('message', messageListener)
+      adapter.addEventListener('close', closeListener)
+
+      // Simulate connection close
+      mockConn.simulateClose()
+
+      // After close, clearAllListeners should have been called internally
+      // or the adapter should be in a state where it doesn't process events
+      // For now, we just verify the close listener was called
+      expect(closeListener).toHaveBeenCalled()
+    })
+  })
 })

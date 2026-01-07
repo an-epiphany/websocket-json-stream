@@ -2,6 +2,8 @@
 
 Best practice examples for `websocket-json-stream`.
 
+> **Note:** This package is designed for **server-side use only**. Clients should use native WebSocket or SockJS APIs directly with `JSON.stringify()`/`JSON.parse()`.
+
 ## Quick Start
 
 ```bash
@@ -19,10 +21,10 @@ cd .. && pnpm build && cd examples
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| Basic Server | `pnpm basic:server` | WebSocket echo server |
-| Basic Client | `pnpm basic:client` | WebSocket client |
+| Basic Server | `pnpm basic:server` | WebSocket echo server (uses WebSocketJSONStream) |
+| Basic Client | `pnpm basic:client` | WebSocket client (uses native ws API) |
 | SockJS Server | `pnpm sockjs:server` | SockJS server with HTTP fallback |
-| SockJS Client | `pnpm sockjs:client` | SockJS client |
+| SockJS Client | `pnpm sockjs:client` | SockJS client (uses native sockjs-client API) |
 | Typed Messages | `pnpm typed` | Type-safe messaging demo |
 
 ## Basic Usage
@@ -96,26 +98,40 @@ transports: ['websocket', 'xhr-streaming', 'xhr-polling', 'jsonp-polling']
 ### 1. Always Handle Errors
 
 ```typescript
+// Server-side (with WebSocketJSONStream)
 stream.on('error', (error) => {
   console.error('Stream error:', error.message)
 })
 
+// Client-side (native WebSocket)
 ws.on('error', (error) => {
   console.error('WebSocket error:', error.message)
 })
 ```
 
-### 2. Use Explicit Adapter Types
+### 2. Server Uses WebSocketJSONStream, Client Uses Native API
 
 ```typescript
-// sockjs-node (server) - explicit adapter
-const stream = new WebSocketJSONStream(conn, 'sockjs-node')
+// Server (sockjs-node) - use WebSocketJSONStream
+import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 
-// sockjs-client (browser) - default 'ws' works
-const stream = new WebSocketJSONStream(sock)
+server.on('connection', (conn) => {
+  const stream = new WebSocketJSONStream(conn, 'sockjs-node')
+  stream.on('data', (msg) => {
+    stream.write({ echo: msg })
+  })
+})
+
+// Client (sockjs-client) - use native API
+const sock = new SockJS('http://localhost:8081/sockjs')
+sock.onmessage = (event) => {
+  const msg = JSON.parse(event.data)
+  console.log('Received:', msg)
+}
+sock.send(JSON.stringify({ hello: 'world' }))
 ```
 
-### 3. Use TypeScript Generics
+### 3. Use TypeScript Generics (Server-Side)
 
 ```typescript
 interface MyMessage {

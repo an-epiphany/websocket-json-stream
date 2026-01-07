@@ -16,7 +16,7 @@ const INTERNAL_ERROR_CODE = 1011
 const INTERNAL_ERROR_REASON = 'stream error'
 
 /**
- * Minimal WebSocket interface compatible with both browser WebSocket and ws library
+ * Minimal WebSocket interface compatible with ws library and SockJS
  */
 export interface WebSocketLike {
   readonly readyState: number
@@ -38,27 +38,29 @@ export interface StreamError extends Error {
 
 type WriteCallback = (error?: Error | null) => void
 
+type MessageHandler = (event: { data: string }) => void
+type CloseHandler = () => void
+
 /**
  * A Duplex stream that wraps a WebSocket connection and handles JSON serialization.
  *
- * @example
- * ```typescript
- * import { WebSocketJSONStream } from 'websocket-json-stream'
- * import { WebSocket } from 'ws'
+ * This stream operates in object mode, automatically serializing objects to JSON
+ * when writing and deserializing JSON strings to objects when reading.
  *
- * const ws = new WebSocket('ws://localhost:8080')
- * const stream = new WebSocketJSONStream(ws)
- *
- * stream.on('data', (data) => {
- *   console.log('Received:', data)
- * })
- *
- * stream.write({ message: 'Hello' })
- * ```
+ * @typeParam T - The type of objects being transmitted through the stream
  */
 export class WebSocketJSONStream<T = unknown> extends Duplex {
   private _emittedClose = false
   private _ending = false
+  private readonly _messageHandler: MessageHandler
+  private readonly _closeHandler: CloseHandler
+  // Pending send queue
+  private _pendingQueue: Array<{ json: string; callback: WriteCallback }> | null = null
+  private _openHandler: (() => void) | null = null
+  private _openCloseHandler: (() => void) | null = null
+  // Close handlers for _closeWebSocket
+  private _closeWsOpenHandler: (() => void) | null = null
+  private _closeWsCloseHandler: (() => void) | null = null
   public readonly ws: WebSocketLike
 
   constructor(ws: AdaptableWebSocket, adapterType: AdapterType = 'ws') {
@@ -71,7 +73,8 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
 
     this.ws = adaptWebSocket(ws, adapterType)
 
-    this.ws.addEventListener('message', ({ data }) => {
+    // Store handler references for cleanup
+    this._messageHandler = ({ data }) => {
       let value: T
 
       try {
@@ -87,14 +90,17 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
       }
 
       this.push(value)
-    })
+    }
 
-    this.ws.addEventListener('close', () => {
+    this._closeHandler = () => {
       // Don't call destroy() if we're already ending via _final
       if (!this._ending) {
         this.destroy()
       }
-    })
+    }
+
+    this.ws.addEventListener('message', this._messageHandler)
+    this.ws.addEventListener('close', this._closeHandler)
   }
 
   override _read(): void {
@@ -121,13 +127,34 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
 
   private _send(json: string, callback: WriteCallback): void {
     if (this.ws.readyState === ReadyState.CONNECTING) {
-      const send = (): void => {
-        this.ws.removeEventListener('open', send)
-        this.ws.removeEventListener('close', send)
-        this._send(json, callback)
+      // Queue the message instead of adding multiple listeners
+      if (!this._pendingQueue) {
+        this._pendingQueue = []
+        const processQueue = (): void => {
+          // Remove listeners
+          if (this._openHandler) {
+            this.ws.removeEventListener('open', this._openHandler)
+            this._openHandler = null
+          }
+          if (this._openCloseHandler) {
+            this.ws.removeEventListener('close', this._openCloseHandler)
+            this._openCloseHandler = null
+          }
+          // Process all queued messages
+          const queue = this._pendingQueue
+          this._pendingQueue = null
+          if (queue) {
+            for (const item of queue) {
+              this._send(item.json, item.callback)
+            }
+          }
+        }
+        this._openHandler = processQueue
+        this._openCloseHandler = processQueue
+        this.ws.addEventListener('open', this._openHandler)
+        this.ws.addEventListener('close', this._openCloseHandler)
       }
-      this.ws.addEventListener('open', send)
-      this.ws.addEventListener('close', send)
+      this._pendingQueue.push({ json, callback })
     } else if (this.ws.readyState === ReadyState.OPEN) {
       this.ws.send(json, callback)
     } else {
@@ -148,6 +175,42 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
   }
 
   override _destroy(error: StreamError | null, callback: WriteCallback): void {
+    // Clean up event listeners to prevent memory leaks
+    this.ws.removeEventListener('message', this._messageHandler)
+    this.ws.removeEventListener('close', this._closeHandler)
+
+    // Clean up pending queue listeners
+    if (this._openHandler) {
+      this.ws.removeEventListener('open', this._openHandler)
+      this._openHandler = null
+    }
+    if (this._openCloseHandler) {
+      this.ws.removeEventListener('close', this._openCloseHandler)
+      this._openCloseHandler = null
+    }
+    // Clear pending queue and call callbacks with error
+    if (this._pendingQueue) {
+      const queue = this._pendingQueue
+      this._pendingQueue = null
+      const closeError = new Error('WebSocket CLOSING or CLOSED.') as StreamError
+      closeError.name = 'Error [ERR_CLOSED]'
+      for (const item of queue) {
+        item.callback(closeError)
+      }
+    }
+
+    // Clean up any close handlers from previous _closeWebSocket calls
+    // Note: We don't call _cleanupCloseWsHandlers() here because _closeWebSocket
+    // will be called below and it will clean up before adding new handlers
+    if (this._closeWsOpenHandler) {
+      this.ws.removeEventListener('open', this._closeWsOpenHandler)
+      this._closeWsOpenHandler = null
+    }
+    if (this._closeWsCloseHandler) {
+      this.ws.removeEventListener('close', this._closeWsCloseHandler)
+      this._closeWsCloseHandler = null
+    }
+
     /*
      * Calling destroy without an error object will close the stream
      * without a code. This results in the client emitting a CloseEvent
@@ -181,35 +244,45 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
     reason: string | undefined,
     callback: WriteCallback
   ): void {
+    // Clean up any existing close handlers before adding new ones
+    this._cleanupCloseWsHandlers()
+
     switch (this.ws.readyState) {
       case ReadyState.CONNECTING: {
         const close = (): void => {
-          this.ws.removeEventListener('open', close)
-          this.ws.removeEventListener('close', close)
+          this._cleanupCloseWsHandlers()
           this._closeWebSocket(code, reason, callback)
         }
+        this._closeWsOpenHandler = close
+        this._closeWsCloseHandler = close
         this.ws.addEventListener('open', close)
         this.ws.addEventListener('close', close)
         break
       }
       case ReadyState.OPEN: {
         const closed = (): void => {
-          this.ws.removeEventListener('close', closed)
+          this._cleanupCloseWsHandlers()
           this._closeWebSocket(code, reason, callback)
         }
+        this._closeWsCloseHandler = closed
         this.ws.addEventListener('close', closed)
         this.ws.close(code, reason)
         break
       }
       case ReadyState.CLOSING: {
         const closed = (): void => {
-          this.ws.removeEventListener('close', closed)
+          this._cleanupCloseWsHandlers()
           this._closeWebSocket(code, reason, callback)
         }
+        this._closeWsCloseHandler = closed
         this.ws.addEventListener('close', closed)
         break
       }
       case ReadyState.CLOSED: {
+        // Clean up event listeners when WebSocket is fully closed
+        this.ws.removeEventListener('message', this._messageHandler)
+        this.ws.removeEventListener('close', this._closeHandler)
+
         process.nextTick(() => {
           // Call callback first to allow 'finish' event to fire before 'close'
           callback()
@@ -226,6 +299,17 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
         })
         break
       }
+    }
+  }
+
+  private _cleanupCloseWsHandlers(): void {
+    if (this._closeWsOpenHandler) {
+      this.ws.removeEventListener('open', this._closeWsOpenHandler)
+      this._closeWsOpenHandler = null
+    }
+    if (this._closeWsCloseHandler) {
+      this.ws.removeEventListener('close', this._closeWsCloseHandler)
+      this._closeWsCloseHandler = null
     }
   }
 }

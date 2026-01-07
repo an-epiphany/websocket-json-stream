@@ -2,9 +2,10 @@
  * SockJS Transport Fallback Integration Tests
  *
  * Tests WebSocket to HTTP fallback scenarios using real sockjs server/client.
+ * Client uses native sockjs-client API, server uses WebSocketJSONStream.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import http from 'node:http'
 import sockjs from 'sockjs'
 import SockJS from 'sockjs-client'
@@ -14,6 +15,18 @@ interface TestMessage {
   type: string
   payload: unknown
   transport?: string
+}
+
+// Helper to send JSON from client
+function clientSend(sock: SockJS.Socket, data: unknown): void {
+  sock.send(JSON.stringify(data))
+}
+
+// Helper to receive JSON on client
+function onClientMessage(sock: SockJS.Socket, callback: (data: unknown) => void): void {
+  sock.onmessage = (event) => {
+    callback(JSON.parse(event.data))
+  }
 }
 
 describe('SockJS Transport Fallback', () => {
@@ -73,36 +86,41 @@ describe('SockJS Transport Fallback', () => {
         timeout: 5000,
       })
 
-      const stream = await new Promise<WebSocketJSONStream<TestMessage>>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000)
 
         sock.onopen = () => {
           clearTimeout(timeout)
-          resolve(new WebSocketJSONStream<TestMessage>(sock))
         }
 
         sock.onerror = (err) => {
           clearTimeout(timeout)
           reject(err)
         }
+
+        sock.onclose = () => {
+          // Connection established, now send message
+        }
+
+        // Wait for open
+        const checkOpen = setInterval(() => {
+          if (sock.readyState === SockJS.OPEN) {
+            clearInterval(checkOpen)
+            clearTimeout(timeout)
+
+            onClientMessage(sock, (data) => {
+              const response = data as TestMessage
+              expect(response.type).toBe('echo')
+              expect(response.payload).toBe('websocket-test')
+              expect(response.transport).toBe('websocket')
+              sock.close()
+              resolve()
+            })
+
+            clientSend(sock, { type: 'ping', payload: 'websocket-test' })
+          }
+        }, 50)
       })
-
-      const response = await new Promise<TestMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Response timeout')), 5000)
-
-        stream.on('data', (data) => {
-          clearTimeout(timeout)
-          resolve(data)
-        })
-
-        stream.write({ type: 'ping', payload: 'websocket-test' })
-      })
-
-      expect(response.type).toBe('echo')
-      expect(response.payload).toBe('websocket-test')
-      expect(response.transport).toBe('websocket')
-
-      stream.end()
     })
   })
 
@@ -114,12 +132,23 @@ describe('SockJS Transport Fallback', () => {
         timeout: 5000,
       })
 
-      const stream = await new Promise<WebSocketJSONStream<TestMessage>>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000)
 
         sock.onopen = () => {
           clearTimeout(timeout)
-          resolve(new WebSocketJSONStream<TestMessage>(sock))
+
+          onClientMessage(sock, (data) => {
+            const response = data as TestMessage
+            expect(response.type).toBe('echo')
+            expect(response.payload).toBe('polling-test')
+            // xhr-polling uses 'xhr-polling' or 'xhr_polling' as protocol
+            expect(response.transport).toMatch(/xhr[_-]?polling/i)
+            sock.close()
+            resolve()
+          })
+
+          clientSend(sock, { type: 'ping', payload: 'polling-test' })
         }
 
         sock.onerror = (err) => {
@@ -127,24 +156,6 @@ describe('SockJS Transport Fallback', () => {
           reject(err)
         }
       })
-
-      const response = await new Promise<TestMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Response timeout')), 5000)
-
-        stream.on('data', (data) => {
-          clearTimeout(timeout)
-          resolve(data)
-        })
-
-        stream.write({ type: 'ping', payload: 'polling-test' })
-      })
-
-      expect(response.type).toBe('echo')
-      expect(response.payload).toBe('polling-test')
-      // xhr-polling uses 'xhr-polling' or 'xhr_polling' as protocol
-      expect(response.transport).toMatch(/xhr[_-]?polling/i)
-
-      stream.end()
     })
 
     it('should fallback to xhr-streaming when websocket is disabled', async () => {
@@ -153,12 +164,22 @@ describe('SockJS Transport Fallback', () => {
         timeout: 5000,
       })
 
-      const stream = await new Promise<WebSocketJSONStream<TestMessage>>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000)
 
         sock.onopen = () => {
           clearTimeout(timeout)
-          resolve(new WebSocketJSONStream<TestMessage>(sock))
+
+          onClientMessage(sock, (data) => {
+            const response = data as TestMessage
+            expect(response.type).toBe('echo')
+            expect(response.payload).toBe('streaming-test')
+            expect(response.transport).toMatch(/xhr[_-]?streaming/i)
+            sock.close()
+            resolve()
+          })
+
+          clientSend(sock, { type: 'ping', payload: 'streaming-test' })
         }
 
         sock.onerror = (err) => {
@@ -166,23 +187,6 @@ describe('SockJS Transport Fallback', () => {
           reject(err)
         }
       })
-
-      const response = await new Promise<TestMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Response timeout')), 5000)
-
-        stream.on('data', (data) => {
-          clearTimeout(timeout)
-          resolve(data)
-        })
-
-        stream.write({ type: 'ping', payload: 'streaming-test' })
-      })
-
-      expect(response.type).toBe('echo')
-      expect(response.payload).toBe('streaming-test')
-      expect(response.transport).toMatch(/xhr[_-]?streaming/i)
-
-      stream.end()
     })
   })
 
@@ -194,12 +198,22 @@ describe('SockJS Transport Fallback', () => {
         timeout: 5000,
       })
 
-      const stream = await new Promise<WebSocketJSONStream<TestMessage>>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000)
 
         sock.onopen = () => {
           clearTimeout(timeout)
-          resolve(new WebSocketJSONStream<TestMessage>(sock))
+
+          onClientMessage(sock, (data) => {
+            const response = data as TestMessage
+            // Should use xhr-polling since that's the only allowed transport
+            expect(response.transport).toMatch(/xhr[_-]?polling/i)
+            expect(response.transport).not.toBe('websocket')
+            sock.close()
+            resolve()
+          })
+
+          clientSend(sock, { type: 'ping', payload: 'restricted-test' })
         }
 
         sock.onerror = (err) => {
@@ -207,23 +221,6 @@ describe('SockJS Transport Fallback', () => {
           reject(err)
         }
       })
-
-      const response = await new Promise<TestMessage>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Response timeout')), 10000)
-
-        stream.on('data', (data) => {
-          clearTimeout(timeout)
-          resolve(data)
-        })
-
-        stream.write({ type: 'ping', payload: 'restricted-test' })
-      })
-
-      // Should use xhr-polling since that's the only allowed transport
-      expect(response.transport).toMatch(/xhr[_-]?polling/i)
-      expect(response.transport).not.toBe('websocket')
-
-      stream.end()
     })
   })
 
@@ -234,12 +231,27 @@ describe('SockJS Transport Fallback', () => {
         timeout: 10000,
       })
 
-      const stream = await new Promise<WebSocketJSONStream<TestMessage>>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('Connection timeout')), 15000)
 
         sock.onopen = () => {
           clearTimeout(timeout)
-          resolve(new WebSocketJSONStream<TestMessage>(sock))
+
+          const closePromise = new Promise<void>((closeResolve) => {
+            sock.onclose = () => closeResolve()
+          })
+
+          sock.close()
+
+          // Should close within timeout
+          Promise.race([
+            closePromise,
+            new Promise((_, closeReject) =>
+              setTimeout(() => closeReject(new Error('Close timeout')), 10000)
+            ),
+          ])
+            .then(() => resolve())
+            .catch(reject)
         }
 
         sock.onerror = (err) => {
@@ -247,22 +259,6 @@ describe('SockJS Transport Fallback', () => {
           reject(err)
         }
       })
-
-      const closePromise = new Promise<void>((resolve) => {
-        stream.on('close', resolve)
-      })
-
-      stream.end()
-
-      // Should close within timeout
-      await expect(
-        Promise.race([
-          closePromise,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Close timeout')), 10000)
-          ),
-        ])
-      ).resolves.toBeUndefined()
     }, 20000) // Longer timeout for HTTP polling close
   })
 })

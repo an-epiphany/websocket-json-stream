@@ -81,4 +81,22 @@ export class SockJSNodeAdapter implements WebSocketLike {
       }
     }
   }
+
+  /**
+   * Clear all event listeners and internal maps
+   * Call this when the connection is being closed to prevent memory leaks
+   */
+  clearAllListeners(): void {
+    // Remove all message listeners
+    for (const [, wrappedListener] of this.messageListeners) {
+      this.conn.off('data', wrappedListener)
+    }
+    this.messageListeners.clear()
+
+    // Remove all close listeners
+    for (const [, wrappedListener] of this.closeListeners) {
+      this.conn.off('close', wrappedListener)
+    }
+    this.closeListeners.clear()
+  }
 }

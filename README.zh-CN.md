@@ -8,7 +8,7 @@
 
 Node.js Duplex 流封装，用于 WebSocket 连接的自动 JSON 序列化。
 
-支持 Node.js WebSockets (ws)、浏览器 WebSockets 和 **SockJS**。
+支持 Node.js WebSockets (ws) 和 **SockJS**。
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
@@ -54,20 +54,21 @@ wss.on('connection', (ws) => {
 })
 ```
 
-### 客户端
+### 客户端（原生 WebSocket）
 
 ```typescript
-import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 import { WebSocket } from 'ws'
 
 const ws = new WebSocket('ws://localhost:8080')
-const stream = new WebSocketJSONStream(ws)
 
-stream.on('data', (data) => {
-  console.log('收到:', data)
+ws.on('open', () => {
+  ws.send(JSON.stringify({ message: '你好！' }))
 })
 
-stream.write({ message: '你好！' })
+ws.on('message', (data) => {
+  const message = JSON.parse(data.toString())
+  console.log('收到:', message)
+})
 ```
 
 ## 类型安全消息
@@ -126,14 +127,18 @@ httpServer.listen(8080)
 ### 客户端 (sockjs-client)
 
 ```typescript
-import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 import SockJS from 'sockjs-client'
 
-// SockJS 客户端兼容 WebSocket，无需适配器
 const sock = new SockJS('http://localhost:8080/sockjs')
-const stream = new WebSocketJSONStream(sock)
 
-stream.write({ message: '通过 SockJS 发送！' })
+sock.onopen = () => {
+  sock.send(JSON.stringify({ message: '通过 SockJS 发送！' }))
+}
+
+sock.onmessage = (e) => {
+  const message = JSON.parse(e.data)
+  console.log('收到:', message)
+}
 ```
 
 ### 为什么选择 SockJS？
@@ -141,7 +146,7 @@ stream.write({ message: '通过 SockJS 发送！' })
 | 场景 | 解决方案 |
 |------|----------|
 | WebSocket 被防火墙/代理阻止 | 自动降级到 XHR streaming |
-| 旧浏览器支持 | 降级到长轮询 |
+| 企业网络环境 | 降级到长轮询 |
 | WebSocket 连接不稳定 | 多种传输选项 |
 
 ## API 参考
