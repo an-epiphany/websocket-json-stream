@@ -1,18 +1,30 @@
-# 2.0.0
+# Changelog
 
-- **BREAKING** Drop support for nodejs 6.
-- **BREAKING** Socket error events are no longer re-emitted as stream error events.
-- Browser WebSocket support.
-- Support writing to the stream when the socket is still connecting.
+All notable changes to this project will be documented in this file.
 
-# 1.1.1
+## [1.0.0] - 2026-01-07
 
-- Updated dependencies.
+Complete rewrite in TypeScript, forked from [websocket-json-stream](https://github.com/Teamwork/websocket-json-stream).
 
-# 1.1.0
+### ✨ Features
 
-- A correct WebSocket "close" reason is now reported based on how the stream is ended/destroyed.
+- **TypeScript First** - Complete rewrite with full type definitions and generic support
+- **Dual Package** - ESM and CommonJS support with proper exports
+- **SockJS Adapter** - Built-in support for SockJS with HTTP fallback transport
+- **Zero Dependencies** - Only peer dependencies for WebSocket libraries
+- **Type-Safe Messaging** - Generic types for compile-time message validation
+- **Browser WebSocket Support** - Works with native browser WebSocket API
+- **Auto-Detection** - Automatic adapter detection for different WebSocket implementations
 
-# 1.0.0
+### 🔧 Technical Changes
 
-Initial release.
+- Minimum Node.js version: 18+
+- Modern ES2022 target
+- Built with unbuild for optimized dual package output
+- Comprehensive test suite with Vitest
+- Benchmark tooling included
+
+### 📦 Package
+
+- Published as `@an-epiphany/websocket-json-stream`
+- MIT License
