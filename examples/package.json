@@ -1,0 +1,28 @@
+{
+  "name": "@an-epiphany/websocket-json-stream-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Examples for @an-epiphany/websocket-json-stream",
+  "type": "module",
+  "scripts": {
+    "basic:server": "tsx basic-server.ts",
+    "basic:client": "tsx basic-client.ts",
+    "sockjs:server": "tsx sockjs-server.ts",
+    "sockjs:client": "tsx sockjs-client.ts",
+    "typed": "tsx typed-messages.ts"
+  },
+  "dependencies": {
+    "@an-epiphany/websocket-json-stream": "link:..",
+    "ws": "^8.18.0",
+    "sockjs": "^0.3.24",
+    "sockjs-client": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/ws": "^8.18.1",
+    "@types/sockjs": "^0.3.36",
+    "@types/sockjs-client": "^1.5.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.2"
+  }
+}

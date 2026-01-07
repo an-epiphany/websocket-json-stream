@@ -6,9 +6,9 @@
 [![typescript](https://img.shields.io/badge/TypeScript-5.0+-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![node](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
-A Node.js Duplex stream wrapper for WebSocket connections with automatic JSON serialization.
+Node.js Duplex 流封装，用于 WebSocket 连接的自动 JSON 序列化。
 
-Works with Node.js WebSockets (ws), browser WebSockets, and **SockJS**.
+支持 Node.js WebSockets (ws)、浏览器 WebSockets 和 **SockJS**。
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
@@ -16,27 +16,27 @@ Works with Node.js WebSockets (ws), browser WebSockets, and **SockJS**.
 
 ---
 
-## Features
+## 特性
 
-- **TypeScript First** - Full type definitions with generic support
-- **Dual Package** - ESM and CommonJS support
-- **SockJS Adapter** - Built-in support for SockJS with HTTP fallback
-- **Zero Dependencies** - Only peer dependencies for WebSocket libraries
-- **Type-Safe Messaging** - Generic types for compile-time message validation
+- **TypeScript 优先** - 完整的类型定义和泛型支持
+- **双包支持** - 同时支持 ESM 和 CommonJS
+- **SockJS 适配器** - 内置 SockJS 支持，带 HTTP 降级
+- **零依赖** - 仅需 WebSocket 库作为对等依赖
+- **类型安全消息** - 泛型类型实现编译时消息校验
 
-## Installation
+## 安装
 
 ```bash
 npm install @an-epiphany/websocket-json-stream
-# or
+# 或
 pnpm add @an-epiphany/websocket-json-stream
-# or
+# 或
 yarn add @an-epiphany/websocket-json-stream
 ```
 
-## Quick Start
+## 快速开始
 
-### Server
+### 服务端
 
 ```typescript
 import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
@@ -48,13 +48,13 @@ wss.on('connection', (ws) => {
   const stream = new WebSocketJSONStream(ws)
 
   stream.on('data', (data) => {
-    console.log('Received:', data)
+    console.log('收到:', data)
     stream.write({ echo: data })
   })
 })
 ```
 
-### Client
+### 客户端
 
 ```typescript
 import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
@@ -64,13 +64,13 @@ const ws = new WebSocket('ws://localhost:8080')
 const stream = new WebSocketJSONStream(ws)
 
 stream.on('data', (data) => {
-  console.log('Received:', data)
+  console.log('收到:', data)
 })
 
-stream.write({ message: 'Hello!' })
+stream.write({ message: '你好！' })
 ```
 
-## Type-Safe Messaging
+## 类型安全消息
 
 ```typescript
 interface ChatMessage {
@@ -82,25 +82,25 @@ interface ChatMessage {
 const stream = new WebSocketJSONStream<ChatMessage>(ws)
 
 stream.on('data', (msg) => {
-  // msg is typed as ChatMessage
+  // msg 被类型化为 ChatMessage
   switch (msg.type) {
     case 'message':
       console.log(`${msg.user}: ${msg.content}`)
       break
     case 'join':
-      console.log(`${msg.user} joined`)
+      console.log(`${msg.user} 加入了`)
       break
   }
 })
 
-stream.write({ type: 'message', user: 'Alice', content: 'Hello!' })
+stream.write({ type: 'message', user: 'Alice', content: '你好！' })
 ```
 
-## SockJS Support
+## SockJS 支持
 
-SockJS provides WebSocket-like API with automatic fallback to HTTP transports when WebSocket is unavailable.
+SockJS 提供类似 WebSocket 的 API，当 WebSocket 不可用时自动降级到 HTTP 传输。
 
-### Server (sockjs-node)
+### 服务端 (sockjs-node)
 
 ```typescript
 import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
@@ -110,7 +110,7 @@ import http from 'http'
 const server = sockjs.createServer()
 
 server.on('connection', (conn) => {
-  // Use 'sockjs-node' adapter for server connections
+  // 服务端连接使用 'sockjs-node' 适配器
   const stream = new WebSocketJSONStream(conn, 'sockjs-node')
 
   stream.on('data', (data) => {
@@ -123,92 +123,92 @@ server.installHandlers(httpServer, { prefix: '/sockjs' })
 httpServer.listen(8080)
 ```
 
-### Client (sockjs-client)
+### 客户端 (sockjs-client)
 
 ```typescript
 import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
 import SockJS from 'sockjs-client'
 
-// SockJS client is WebSocket-compatible, no adapter needed
+// SockJS 客户端兼容 WebSocket，无需适配器
 const sock = new SockJS('http://localhost:8080/sockjs')
 const stream = new WebSocketJSONStream(sock)
 
-stream.write({ message: 'Hello via SockJS!' })
+stream.write({ message: '通过 SockJS 发送！' })
 ```
 
-### Why SockJS?
+### 为什么选择 SockJS？
 
-| Scenario | Solution |
-|----------|----------|
-| WebSocket blocked by firewall/proxy | Auto-fallback to XHR streaming |
-| Legacy browser support | Falls back to long-polling |
-| Unreliable WebSocket connections | Multiple transport options |
+| 场景 | 解决方案 |
+|------|----------|
+| WebSocket 被防火墙/代理阻止 | 自动降级到 XHR streaming |
+| 旧浏览器支持 | 降级到长轮询 |
+| WebSocket 连接不稳定 | 多种传输选项 |
 
-## API Reference
+## API 参考
 
-### Constructor
+### 构造函数
 
 ```typescript
 new WebSocketJSONStream<T>(ws: AdaptableWebSocket, adapterType?: AdapterType)
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `ws` | `AdaptableWebSocket` | - | WebSocket or SockJS connection |
-| `adapterType` | `'ws' \| 'sockjs-node' \| 'auto'` | `'ws'` | Adapter type |
-| `T` | Generic | `unknown` | Message type |
+| 参数 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `ws` | `AdaptableWebSocket` | - | WebSocket 或 SockJS 连接 |
+| `adapterType` | `'ws' \| 'sockjs-node' \| 'auto'` | `'ws'` | 适配器类型 |
+| `T` | 泛型 | `unknown` | 消息类型 |
 
-### Events
+### 事件
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `data` | `T` | JSON message received |
-| `error` | `Error` | Parse/write error |
-| `close` | - | Stream closed |
-| `finish` | - | Write side ended |
+| 事件 | 载荷 | 描述 |
+|------|------|------|
+| `data` | `T` | 收到 JSON 消息 |
+| `error` | `Error` | 解析/写入错误 |
+| `close` | - | 流已关闭 |
+| `finish` | - | 写入端已结束 |
 
-### Methods
+### 方法
 
-| Method | Description |
-|--------|-------------|
-| `write(data: T)` | Send JSON message |
-| `end()` | Close with code 1000 |
-| `destroy(error?)` | Force close |
+| 方法 | 描述 |
+|------|------|
+| `write(data: T)` | 发送 JSON 消息 |
+| `end()` | 以码 1000 关闭 |
+| `destroy(error?)` | 强制关闭 |
 
-## Closing Connections
+## 关闭连接
 
 ```typescript
-// Normal close (code: 1000)
+// 正常关闭 (码: 1000)
 stream.end()
 
-// Close without code (code: 1005)
+// 无状态码关闭 (码: 1005)
 stream.destroy()
 
-// Close with error (code: 1011)
-stream.destroy(new Error('Something went wrong'))
+// 带错误关闭 (码: 1011)
+stream.destroy(new Error('出错了'))
 
-// Custom close code (3000-4999)
-const error = new Error('Custom') as StreamError
+// 自定义关闭码 (3000-4999)
+const error = new Error('自定义') as StreamError
 error.closeCode = 4000
-error.closeReason = 'Custom reason'
+error.closeReason = '自定义原因'
 stream.destroy(error)
 ```
 
-## Error Handling
+## 错误处理
 
 ```typescript
-// Handle WebSocket errors (not handled by stream)
+// 处理 WebSocket 错误（流不处理）
 ws.on('error', (error) => {
-  console.error('WebSocket error:', error)
+  console.error('WebSocket 错误:', error)
 })
 
-// Handle stream errors
+// 处理流错误
 stream.on('error', (error) => {
-  console.error('Stream error:', error)
+  console.error('流错误:', error)
 })
 ```
 
-## Advanced: Adapter Utilities
+## 高级：适配器工具
 
 ```typescript
 import {
@@ -218,16 +218,16 @@ import {
   SockJSNodeAdapter,
 } from '@an-epiphany/websocket-json-stream'
 
-// Type checking
+// 类型检查
 if (isSockJSNodeConnection(conn)) {
-  console.log('SockJS Node connection')
+  console.log('SockJS Node 连接')
 }
 
-// Manual adaptation
+// 手动适配
 const adapted = adaptWebSocket(conn, 'auto')
 ```
 
-## Types
+## 类型
 
 ```typescript
 interface WebSocketLike {
@@ -255,10 +255,10 @@ type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection
 type AdapterType = 'ws' | 'sockjs-node' | 'auto'
 ```
 
-## License
+## 许可证
 
 [MIT](./LICENSE)
 
-## Credits
+## 致谢
 
-TypeScript rewrite of [@teamwork/websocket-json-stream](https://github.com/Teamwork/websocket-json-stream) by Greg Kubisa.
+基于 Greg Kubisa 的 [@teamwork/websocket-json-stream](https://github.com/Teamwork/websocket-json-stream) 重写的 TypeScript 版本。
