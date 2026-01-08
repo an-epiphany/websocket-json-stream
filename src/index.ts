@@ -1,4 +1,11 @@
-export { WebSocketJSONStream, type WebSocketLike, type StreamError } from './websocket-json-stream'
+export {
+  WebSocketJSONStream,
+  jsonSerializer,
+  type WebSocketLike,
+  type StreamError,
+  type Serializer,
+  type WebSocketJSONStreamOptions,
+} from './websocket-json-stream'
 
 // Adapter exports for advanced usage
 export {

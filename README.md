@@ -20,6 +20,7 @@ Works with Node.js WebSockets (ws), **SockJS**, and **Socket.IO**.
 
 - **TypeScript First** - Full type definitions with generic support
 - **Dual Package** - ESM and CommonJS support
+- **Custom Serializer** - Pluggable serialization (JSON, MessagePack, etc.)
 - **SockJS Adapter** - Built-in support for SockJS with HTTP fallback
 - **Socket.IO Adapter** - Built-in support for Socket.IO with automatic reconnection
 - **Zero Dependencies** - Only peer dependencies for WebSocket libraries
@@ -96,6 +97,69 @@ stream.on('data', (msg) => {
 })
 
 stream.write({ type: 'message', user: 'Alice', content: 'Hello!' })
+```
+
+## Custom Serializer
+
+By default, the stream uses JSON for serialization. You can provide a custom serializer for better performance or different formats.
+
+### Using Options Object
+
+```typescript
+import { WebSocketJSONStream, type Serializer } from '@an-epiphany/websocket-json-stream'
+
+// Custom serializer with prefix (example)
+const customSerializer: Serializer<MyData> = {
+  serialize: (value) => `PREFIX:${JSON.stringify(value)}`,
+  deserialize: (data) => JSON.parse(data.replace('PREFIX:', '')),
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  adapterType: 'ws',
+  serializer: customSerializer,
+})
+```
+
+### MessagePack Example
+
+[MessagePack](https://msgpack.org/) is a binary format that's faster and smaller than JSON.
+
+```typescript
+import { WebSocketJSONStream, type Serializer } from '@an-epiphany/websocket-json-stream'
+import { encode, decode } from '@msgpack/msgpack'
+
+const msgpackSerializer: Serializer<MyData> = {
+  serialize: (value) => Buffer.from(encode(value)).toString('base64'),
+  deserialize: (data) => decode(Buffer.from(data, 'base64')) as MyData,
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  serializer: msgpackSerializer,
+})
+```
+
+### Base64 Encoding Example
+
+```typescript
+const base64Serializer: Serializer<unknown> = {
+  serialize: (value) => Buffer.from(JSON.stringify(value)).toString('base64'),
+  deserialize: (data) => JSON.parse(Buffer.from(data, 'base64').toString('utf-8')),
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  serializer: base64Serializer,
+})
+```
+
+### Default JSON Serializer
+
+You can also import the default serializer for reference or extension:
+
+```typescript
+import { jsonSerializer } from '@an-epiphany/websocket-json-stream'
+
+// jsonSerializer.serialize(value) - converts to JSON string
+// jsonSerializer.deserialize(data) - parses JSON string
 ```
 
 ## SockJS Support
@@ -208,13 +272,25 @@ socket.on('message', (data: string) => {
 ### Constructor
 
 ```typescript
+// New options-based API (recommended)
+new WebSocketJSONStream<T>(ws: AdaptableWebSocket, options?: WebSocketJSONStreamOptions<T>)
+
+// Legacy API (still supported)
 new WebSocketJSONStream<T>(ws: AdaptableWebSocket, adapterType?: AdapterType)
 ```
+
+#### Options Object
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `adapterType` | `AdapterType` | `'ws'` | Adapter type for WebSocket implementation |
+| `serializer` | `Serializer<T>` | `jsonSerializer` | Custom serializer for encoding/decoding |
+
+#### Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `ws` | `AdaptableWebSocket` | - | WebSocket, SockJS, or Socket.IO connection |
-| `adapterType` | `'ws' \| 'sockjs-node' \| 'socketio' \| 'auto'` | `'ws'` | Adapter type |
 | `T` | Generic | `unknown` | Message type |
 
 ### Events
@@ -295,6 +371,16 @@ const adapted = adaptWebSocket(conn, 'auto')
 ## Types
 
 ```typescript
+interface Serializer<T = unknown> {
+  serialize(value: T): string
+  deserialize(data: string): T
+}
+
+interface WebSocketJSONStreamOptions<T = unknown> {
+  adapterType?: AdapterType
+  serializer?: Serializer<T>
+}
+
 interface WebSocketLike {
   readonly readyState: number
   send(data: string, callback?: (error?: Error) => void): void

@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-01-08
+
+### ✨ Features
+
+- **Custom Serializer** - Pluggable serialization support for better performance or different formats
+  - New `Serializer<T>` interface with `serialize` and `deserialize` methods
+  - New `WebSocketJSONStreamOptions<T>` interface for options-based constructor
+  - New `jsonSerializer` export as the default JSON serializer
+  - Support for MessagePack, Base64, and other custom serialization formats
+  - Full backward compatibility with legacy constructor signature
+
+### 📖 Documentation
+
+- Updated README with Custom Serializer section and examples
+- Added MessagePack and Base64 encoding examples
+- Updated API Reference with new options-based constructor
+- Updated Types section with new interfaces
+- Updated Chinese README (README.zh-CN.md) with all changes
+
+### 🧪 Tests
+
+- Added comprehensive custom serializer test suite (15 tests)
+  - Default jsonSerializer tests
+  - Options object constructor tests
+  - Backward compatibility tests
+  - Send/receive with custom serializer tests
+  - Bidirectional Base64 encoding tests
+  - Error handling tests (serialize/deserialize failures)
+  - Type safety tests
+
 ## [1.1.0] - 2026-01-08
 
 ### ✨ Features

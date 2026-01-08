@@ -1,6 +1,44 @@
 import { Duplex, DuplexOptions } from 'node:stream'
 import { adaptWebSocket, type AdaptableWebSocket, type AdapterType } from './adapters'
 
+/**
+ * Serializer interface for custom serialization/deserialization
+ */
+export interface Serializer<T = unknown> {
+  /**
+   * Serialize a value to a string for transmission over WebSocket
+   */
+  serialize(value: T): string
+  /**
+   * Deserialize a string received from WebSocket back to a value
+   */
+  deserialize(data: string): T
+}
+
+/**
+ * Default JSON serializer
+ */
+export const jsonSerializer: Serializer<unknown> = {
+  serialize: (value) => JSON.stringify(value),
+  deserialize: (data) => JSON.parse(data) as unknown,
+}
+
+/**
+ * Options for WebSocketJSONStream constructor
+ */
+export interface WebSocketJSONStreamOptions<T = unknown> {
+  /**
+   * The adapter type for the WebSocket implementation
+   * @default 'ws'
+   */
+  adapterType?: AdapterType
+  /**
+   * Custom serializer for encoding/decoding messages
+   * @default jsonSerializer (uses JSON.stringify/JSON.parse)
+   */
+  serializer?: Serializer<T>
+}
+
 /** WebSocket ready states */
 const enum ReadyState {
   CONNECTING = 0,
@@ -54,6 +92,7 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
   private _ending = false
   private readonly _messageHandler: MessageHandler
   private readonly _closeHandler: CloseHandler
+  private readonly _serializer: Serializer<T>
   // Pending send queue
   private _pendingQueue: Array<{ json: string; callback: WriteCallback }> | null = null
   private _openHandler: (() => void) | null = null
@@ -63,7 +102,23 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
   private _closeWsCloseHandler: (() => void) | null = null
   public readonly ws: WebSocketLike
 
-  constructor(ws: AdaptableWebSocket, adapterType: AdapterType = 'ws') {
+  /**
+   * Creates a new WebSocketJSONStream
+   * @param ws - The WebSocket instance to wrap
+   * @param options - Options object containing adapterType and serializer
+   */
+  constructor(ws: AdaptableWebSocket, options?: WebSocketJSONStreamOptions<T>)
+  /**
+   * Creates a new WebSocketJSONStream (legacy signature for backward compatibility)
+   * @param ws - The WebSocket instance to wrap
+   * @param adapterType - The adapter type for the WebSocket implementation
+   * @deprecated Use options object instead: `new WebSocketJSONStream(ws, { adapterType: 'ws' })`
+   */
+  constructor(ws: AdaptableWebSocket, adapterType?: AdapterType)
+  constructor(
+    ws: AdaptableWebSocket,
+    optionsOrAdapterType?: WebSocketJSONStreamOptions<T> | AdapterType
+  ) {
     const options: DuplexOptions = {
       objectMode: true,
       allowHalfOpen: false,
@@ -71,6 +126,20 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
     }
     super(options)
 
+    // Handle both legacy and new API
+    let adapterType: AdapterType = 'ws'
+    let serializer: Serializer<T> = jsonSerializer as Serializer<T>
+
+    if (typeof optionsOrAdapterType === 'string') {
+      // Legacy: constructor(ws, adapterType)
+      adapterType = optionsOrAdapterType
+    } else if (optionsOrAdapterType) {
+      // New: constructor(ws, options)
+      adapterType = optionsOrAdapterType.adapterType ?? 'ws'
+      serializer = optionsOrAdapterType.serializer ?? (jsonSerializer as Serializer<T>)
+    }
+
+    this._serializer = serializer
     this.ws = adaptWebSocket(ws, adapterType)
 
     // Store handler references for cleanup
@@ -78,14 +147,14 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
       let value: T
 
       try {
-        value = JSON.parse(data) as T
+        value = this._serializer.deserialize(data)
       } catch (error) {
         this.destroy(error as Error)
         return
       }
 
       if (value == null) {
-        this.destroy(new Error("Can't JSON.parse the value"))
+        this.destroy(new Error("Can't deserialize the value"))
         return
       }
 
@@ -108,21 +177,21 @@ export class WebSocketJSONStream<T = unknown> extends Duplex {
   }
 
   override _write(object: T, _encoding: BufferEncoding, callback: WriteCallback): void {
-    let json: string
+    let serialized: string
 
     try {
-      json = JSON.stringify(object)
+      serialized = this._serializer.serialize(object)
     } catch (error) {
       callback(error as Error)
       return
     }
 
-    if (typeof json !== 'string') {
-      callback(new Error("Can't JSON.stringify the value"))
+    if (typeof serialized !== 'string') {
+      callback(new Error("Can't serialize the value"))
       return
     }
 
-    this._send(json, callback)
+    this._send(serialized, callback)
   }
 
   private _send(json: string, callback: WriteCallback): void {

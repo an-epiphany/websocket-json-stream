@@ -20,6 +20,7 @@ Node.js Duplex 流封装，用于 WebSocket 连接的自动 JSON 序列化。
 
 - **TypeScript 优先** - 完整的类型定义和泛型支持
 - **双包支持** - 同时支持 ESM 和 CommonJS
+- **自定义序列化器** - 可插拔的序列化方案（JSON、MessagePack 等）
 - **SockJS 适配器** - 内置 SockJS 支持，带 HTTP 降级
 - **Socket.IO 适配器** - 内置 Socket.IO 支持，带自动重连
 - **零依赖** - 仅需 WebSocket 库作为对等依赖
@@ -96,6 +97,69 @@ stream.on('data', (msg) => {
 })
 
 stream.write({ type: 'message', user: 'Alice', content: '你好！' })
+```
+
+## 自定义序列化器
+
+默认情况下，流使用 JSON 进行序列化。你可以提供自定义序列化器以获得更好的性能或使用不同的格式。
+
+### 使用选项对象
+
+```typescript
+import { WebSocketJSONStream, type Serializer } from '@an-epiphany/websocket-json-stream'
+
+// 带前缀的自定义序列化器（示例）
+const customSerializer: Serializer<MyData> = {
+  serialize: (value) => `PREFIX:${JSON.stringify(value)}`,
+  deserialize: (data) => JSON.parse(data.replace('PREFIX:', '')),
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  adapterType: 'ws',
+  serializer: customSerializer,
+})
+```
+
+### MessagePack 示例
+
+[MessagePack](https://msgpack.org/) 是一种二进制格式，比 JSON 更快更小。
+
+```typescript
+import { WebSocketJSONStream, type Serializer } from '@an-epiphany/websocket-json-stream'
+import { encode, decode } from '@msgpack/msgpack'
+
+const msgpackSerializer: Serializer<MyData> = {
+  serialize: (value) => Buffer.from(encode(value)).toString('base64'),
+  deserialize: (data) => decode(Buffer.from(data, 'base64')) as MyData,
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  serializer: msgpackSerializer,
+})
+```
+
+### Base64 编码示例
+
+```typescript
+const base64Serializer: Serializer<unknown> = {
+  serialize: (value) => Buffer.from(JSON.stringify(value)).toString('base64'),
+  deserialize: (data) => JSON.parse(Buffer.from(data, 'base64').toString('utf-8')),
+}
+
+const stream = new WebSocketJSONStream(ws, {
+  serializer: base64Serializer,
+})
+```
+
+### 默认 JSON 序列化器
+
+你也可以导入默认序列化器用于参考或扩展：
+
+```typescript
+import { jsonSerializer } from '@an-epiphany/websocket-json-stream'
+
+// jsonSerializer.serialize(value) - 转换为 JSON 字符串
+// jsonSerializer.deserialize(data) - 解析 JSON 字符串
 ```
 
 ## SockJS 支持
@@ -208,13 +272,25 @@ socket.on('message', (data: string) => {
 ### 构造函数
 
 ```typescript
+// 新的选项对象 API（推荐）
+new WebSocketJSONStream<T>(ws: AdaptableWebSocket, options?: WebSocketJSONStreamOptions<T>)
+
+// 旧版 API（仍然支持）
 new WebSocketJSONStream<T>(ws: AdaptableWebSocket, adapterType?: AdapterType)
 ```
+
+#### 选项对象
+
+| 属性 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `adapterType` | `AdapterType` | `'ws'` | WebSocket 实现的适配器类型 |
+| `serializer` | `Serializer<T>` | `jsonSerializer` | 自定义序列化器 |
+
+#### 参数
 
 | 参数 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `ws` | `AdaptableWebSocket` | - | WebSocket、SockJS 或 Socket.IO 连接 |
-| `adapterType` | `'ws' \| 'sockjs-node' \| 'socketio' \| 'auto'` | `'ws'` | 适配器类型 |
 | `T` | 泛型 | `unknown` | 消息类型 |
 
 ### 事件
@@ -295,6 +371,16 @@ const adapted = adaptWebSocket(conn, 'auto')
 ## 类型
 
 ```typescript
+interface Serializer<T = unknown> {
+  serialize(value: T): string
+  deserialize(data: string): T
+}
+
+interface WebSocketJSONStreamOptions<T = unknown> {
+  adapterType?: AdapterType
+  serializer?: Serializer<T>
+}
+
 interface WebSocketLike {
   readonly readyState: number
   send(data: string, callback?: (error?: Error) => void): void
