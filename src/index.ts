@@ -5,8 +5,11 @@ export {
   adaptWebSocket,
   isWebSocketLike,
   isSockJSNodeConnection,
+  isSocketIOSocket,
   SockJSNodeAdapter,
+  SocketIOAdapter,
   type SockJSNodeConnection,
+  type SocketIOSocket,
   type AdaptableWebSocket,
   type AdapterType,
 } from './adapters'

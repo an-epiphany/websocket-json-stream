@@ -8,7 +8,7 @@
 
 A Node.js Duplex stream wrapper for WebSocket connections with automatic JSON serialization.
 
-Works with Node.js WebSockets (ws) and **SockJS**.
+Works with Node.js WebSockets (ws), **SockJS**, and **Socket.IO**.
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
@@ -21,6 +21,7 @@ Works with Node.js WebSockets (ws) and **SockJS**.
 - **TypeScript First** - Full type definitions with generic support
 - **Dual Package** - ESM and CommonJS support
 - **SockJS Adapter** - Built-in support for SockJS with HTTP fallback
+- **Socket.IO Adapter** - Built-in support for Socket.IO with automatic reconnection
 - **Zero Dependencies** - Only peer dependencies for WebSocket libraries
 - **Type-Safe Messaging** - Generic types for compile-time message validation
 
@@ -149,6 +150,59 @@ sock.onmessage = (e) => {
 | Corporate networks | Falls back to long-polling |
 | Unreliable WebSocket connections | Multiple transport options |
 
+## Socket.IO Support
+
+Socket.IO provides real-time bidirectional event-based communication with automatic reconnection and HTTP fallback.
+
+### Server (socket.io)
+
+```typescript
+import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
+import { Server as SocketIOServer } from 'socket.io'
+import http from 'http'
+
+const httpServer = http.createServer()
+const io = new SocketIOServer(httpServer)
+
+io.on('connection', (socket) => {
+  // Use 'socketio' adapter for Socket.IO sockets
+  const stream = new WebSocketJSONStream(socket, 'socketio')
+
+  stream.on('data', (data) => {
+    stream.write({ echo: data })
+  })
+})
+
+httpServer.listen(8080)
+```
+
+### Client (socket.io-client)
+
+```typescript
+import { io } from 'socket.io-client'
+
+const socket = io('http://localhost:8080')
+
+socket.on('connect', () => {
+  // Send JSON via 'message' event (matches server's WebSocketJSONStream)
+  socket.emit('message', JSON.stringify({ message: 'Hello via Socket.IO!' }))
+})
+
+socket.on('message', (data: string) => {
+  const message = JSON.parse(data)
+  console.log('Received:', message)
+})
+```
+
+### Why Socket.IO?
+
+| Scenario | Solution |
+|----------|----------|
+| Need automatic reconnection | Built-in reconnection with backoff |
+| WebSocket unavailable | Auto-fallback to HTTP long-polling |
+| Need room/namespace support | Native rooms and namespaces |
+| Cross-browser compatibility | Polyfills and fallbacks included |
+
 ## API Reference
 
 ### Constructor
@@ -159,8 +213,8 @@ new WebSocketJSONStream<T>(ws: AdaptableWebSocket, adapterType?: AdapterType)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `ws` | `AdaptableWebSocket` | - | WebSocket or SockJS connection |
-| `adapterType` | `'ws' \| 'sockjs-node' \| 'auto'` | `'ws'` | Adapter type |
+| `ws` | `AdaptableWebSocket` | - | WebSocket, SockJS, or Socket.IO connection |
+| `adapterType` | `'ws' \| 'sockjs-node' \| 'socketio' \| 'auto'` | `'ws'` | Adapter type |
 | `T` | Generic | `unknown` | Message type |
 
 ### Events
@@ -220,12 +274,18 @@ import {
   adaptWebSocket,
   isWebSocketLike,
   isSockJSNodeConnection,
+  isSocketIOSocket,
   SockJSNodeAdapter,
+  SocketIOAdapter,
 } from '@an-epiphany/websocket-json-stream'
 
 // Type checking
 if (isSockJSNodeConnection(conn)) {
   console.log('SockJS Node connection')
+}
+
+if (isSocketIOSocket(socket)) {
+  console.log('Socket.IO socket')
 }
 
 // Manual adaptation
@@ -251,13 +311,22 @@ interface SockJSNodeConnection {
   off(event: 'data' | 'close', listener: Function): this
 }
 
+interface SocketIOSocket {
+  readonly id: string
+  readonly connected: boolean
+  emit(event: string, ...args: unknown[]): this
+  on(event: string, listener: Function): this
+  off(event: string, listener: Function): this
+  disconnect(close?: boolean): this
+}
+
 interface StreamError extends Error {
   closeCode?: number
   closeReason?: string
 }
 
-type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection
-type AdapterType = 'ws' | 'sockjs-node' | 'auto'
+type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection | SocketIOSocket
+type AdapterType = 'ws' | 'sockjs-node' | 'socketio' | 'auto'
 ```
 
 ## License

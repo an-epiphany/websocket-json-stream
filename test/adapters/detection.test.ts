@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isWebSocketLike, isSockJSNodeConnection, adaptWebSocket, SockJSNodeAdapter } from '../../src/adapters'
+import { isWebSocketLike, isSockJSNodeConnection, isSocketIOSocket, adaptWebSocket, SockJSNodeAdapter, SocketIOAdapter } from '../../src/adapters'
 
 describe('Type Detection', () => {
   describe('isWebSocketLike', () => {
@@ -83,12 +83,108 @@ describe('Type Detection', () => {
       expect(isSockJSNodeConnection(hybrid)).toBe(false)
     })
 
+    it('should return false for Socket.IO socket', () => {
+      const mockSocket = {
+        id: 'test-id',
+        connected: true,
+        emit: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        disconnect: vi.fn(),
+      }
+      expect(isSockJSNodeConnection(mockSocket)).toBe(false)
+    })
+
     it('should return false for null', () => {
       expect(isSockJSNodeConnection(null)).toBe(false)
     })
 
     it('should return false for undefined', () => {
       expect(isSockJSNodeConnection(undefined)).toBe(false)
+    })
+  })
+
+  describe('isSocketIOSocket', () => {
+    it('should return true for Socket.IO socket', () => {
+      const mockSocket = {
+        id: 'test-id',
+        connected: true,
+        emit: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        disconnect: vi.fn(),
+      }
+      expect(isSocketIOSocket(mockSocket)).toBe(true)
+    })
+
+    it('should return false for standard WebSocket-like object', () => {
+      const mockWs = {
+        readyState: 1,
+        send: vi.fn(),
+        close: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }
+      expect(isSocketIOSocket(mockWs)).toBe(false)
+    })
+
+    it('should return false for sockjs-node connection', () => {
+      const mockConn = {
+        readyState: 1,
+        write: vi.fn(),
+        close: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+      }
+      expect(isSocketIOSocket(mockConn)).toBe(false)
+    })
+
+    it('should return false for object with readyState (like WebSocket)', () => {
+      const hybrid = {
+        id: 'test-id',
+        connected: true,
+        readyState: 1, // Has readyState, so not Socket.IO
+        emit: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        disconnect: vi.fn(),
+      }
+      expect(isSocketIOSocket(hybrid)).toBe(false)
+    })
+
+    it('should return false for object with send method', () => {
+      const hybrid = {
+        id: 'test-id',
+        connected: true,
+        send: vi.fn(), // Has send, so not Socket.IO
+        emit: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        disconnect: vi.fn(),
+      }
+      expect(isSocketIOSocket(hybrid)).toBe(false)
+    })
+
+    it('should return false for null', () => {
+      expect(isSocketIOSocket(null)).toBe(false)
+    })
+
+    it('should return false for undefined', () => {
+      expect(isSocketIOSocket(undefined)).toBe(false)
+    })
+
+    it('should return false for non-object', () => {
+      expect(isSocketIOSocket('string')).toBe(false)
+      expect(isSocketIOSocket(123)).toBe(false)
+    })
+
+    it('should return false for object missing required properties', () => {
+      const incomplete = {
+        id: 'test-id',
+        emit: vi.fn(),
+        // missing connected, on, off, disconnect
+      }
+      expect(isSocketIOSocket(incomplete)).toBe(false)
     })
   })
 
@@ -111,6 +207,15 @@ describe('Type Detection', () => {
       removeListener: vi.fn(),
     }
 
+    const mockSocket = {
+      id: 'test-id',
+      connected: true,
+      emit: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+      disconnect: vi.fn(),
+    }
+
     describe('with adapterType="ws" (default)', () => {
       it('should return the same object without adaptation', () => {
         const result = adaptWebSocket(mockWs)
@@ -131,6 +236,13 @@ describe('Type Detection', () => {
       })
     })
 
+    describe('with adapterType="socketio"', () => {
+      it('should return SocketIOAdapter', () => {
+        const result = adaptWebSocket(mockSocket as never, 'socketio')
+        expect(result).toBeInstanceOf(SocketIOAdapter)
+      })
+    })
+
     describe('with adapterType="auto"', () => {
       it('should return the same object for WebSocket-like', () => {
         const result = adaptWebSocket(mockWs, 'auto')
@@ -142,10 +254,15 @@ describe('Type Detection', () => {
         expect(result).toBeInstanceOf(SockJSNodeAdapter)
       })
 
+      it('should return SocketIOAdapter for Socket.IO socket', () => {
+        const result = adaptWebSocket(mockSocket, 'auto')
+        expect(result).toBeInstanceOf(SocketIOAdapter)
+      })
+
       it('should throw for unsupported object type', () => {
         const unsupported = {
           readyState: 1,
-          // Missing required methods for both types
+          // Missing required methods for all types
         }
         expect(() => adaptWebSocket(unsupported as never, 'auto')).toThrow('Unsupported WebSocket type')
       })

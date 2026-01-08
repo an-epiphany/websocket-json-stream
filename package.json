@@ -1,7 +1,7 @@
 {
   "name": "@an-epiphany/websocket-json-stream",
-  "version": "1.0.0",
-  "description": "A TypeScript Duplex stream wrapper for WebSocket with automatic JSON serialization. Supports ws and SockJS.",
+  "version": "1.1.0",
+  "description": "A TypeScript Duplex stream wrapper for WebSocket with automatic JSON serialization. Supports ws, SockJS, and Socket.IO.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -38,6 +38,8 @@
     "duplex",
     "typescript",
     "sockjs",
+    "socket.io",
+    "socketio",
     "ws",
     "realtime",
     "socket"
@@ -61,6 +63,8 @@
     "@types/sockjs-client": "^1.5.4",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^2.1.8",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "sockjs": "^0.3.24",
     "sockjs-client": "^1.6.1",
     "tsx": "^4.21.0",
@@ -71,7 +75,7 @@
   },
   "engines": {
     "node": ">=18",
-    "pnpm": ">=10",
+    "pnpm": ">=9",
     "npm": "please-use-pnpm"
   },
   "packageManager": "pnpm@10.26.2"

@@ -2,7 +2,7 @@
 
 Best practice examples for `websocket-json-stream`.
 
-> **Note:** This package is designed for **server-side use only**. Clients should use native WebSocket or SockJS APIs directly with `JSON.stringify()`/`JSON.parse()`.
+> **Note:** This package is designed for **server-side use only**. Clients should use native WebSocket, SockJS, or Socket.IO APIs directly with `JSON.stringify()`/`JSON.parse()`.
 
 ## Quick Start
 
@@ -25,6 +25,8 @@ cd .. && pnpm build && cd examples
 | Basic Client | `pnpm basic:client` | WebSocket client (uses native ws API) |
 | SockJS Server | `pnpm sockjs:server` | SockJS server with HTTP fallback |
 | SockJS Client | `pnpm sockjs:client` | SockJS client (uses native sockjs-client API) |
+| Socket.IO Server | `pnpm socketio:server` | Socket.IO server with HTTP fallback |
+| Socket.IO Client | `pnpm socketio:client` | Socket.IO client (uses native socket.io-client API) |
 | Typed Messages | `pnpm typed` | Type-safe messaging demo |
 
 ## Basic Usage
@@ -92,6 +94,63 @@ transports: ['xhr-polling', 'jsonp-polling']
 // Maximum compatibility
 transports: ['websocket', 'xhr-streaming', 'xhr-polling', 'jsonp-polling']
 ```
+
+## Socket.IO (with HTTP fallback and auto-reconnection)
+
+Terminal 1:
+```bash
+pnpm socketio:server
+```
+
+Terminal 2:
+```bash
+pnpm socketio:client
+```
+
+### Server Configuration
+
+```typescript
+import { Server as SocketIOServer } from 'socket.io'
+
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST'],
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 20000,
+  pingInterval: 25000,
+})
+```
+
+### Client Configuration
+
+```typescript
+import { io } from 'socket.io-client'
+
+const socket = io('http://localhost:8082', {
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+})
+```
+
+### Transport Options
+
+| Transport | Description | Use Case |
+|-----------|-------------|----------|
+| `websocket` | Full-duplex, best performance | Default |
+| `polling` | HTTP long-polling | Universal fallback |
+
+### Key Differences from SockJS
+
+| Feature | SockJS | Socket.IO |
+|---------|--------|-----------|
+| Auto-reconnection | Manual | Built-in |
+| Rooms/Namespaces | No | Yes |
+| Binary support | No | Yes |
+| Acknowledgements | No | Yes |
 
 ## Best Practices
 

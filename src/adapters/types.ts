@@ -18,7 +18,24 @@ export interface SockJSNodeConnection {
 }
 
 /**
- * Union type for adaptable WebSocket-like objects
- * Supports standard WebSocket and sockjs-node connections
+ * Socket.IO socket interface (v4.x)
+ * Used for both server-side and client-side sockets
  */
-export type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection
+export interface SocketIOSocket {
+  readonly id: string
+  readonly connected: boolean
+  emit(event: string, ...args: unknown[]): this
+  on(event: 'message', listener: (data: string) => void): this
+  on(event: 'disconnect', listener: (reason: string) => void): this
+  on(event: string, listener: (...args: unknown[]) => void): this
+  off(event: 'message', listener: (data: string) => void): this
+  off(event: 'disconnect', listener: (reason: string) => void): this
+  off(event: string, listener: (...args: unknown[]) => void): this
+  disconnect(close?: boolean): this
+}
+
+/**
+ * Union type for adaptable WebSocket-like objects
+ * Supports standard WebSocket, sockjs-node connections, and Socket.IO sockets
+ */
+export type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection | SocketIOSocket

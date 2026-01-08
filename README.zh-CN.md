@@ -8,7 +8,7 @@
 
 Node.js Duplex 流封装，用于 WebSocket 连接的自动 JSON 序列化。
 
-支持 Node.js WebSockets (ws) 和 **SockJS**。
+支持 Node.js WebSockets (ws)、**SockJS** 和 **Socket.IO**。
 
 [English](./README.md) | [中文](./README.zh-CN.md)
 
@@ -21,6 +21,7 @@ Node.js Duplex 流封装，用于 WebSocket 连接的自动 JSON 序列化。
 - **TypeScript 优先** - 完整的类型定义和泛型支持
 - **双包支持** - 同时支持 ESM 和 CommonJS
 - **SockJS 适配器** - 内置 SockJS 支持，带 HTTP 降级
+- **Socket.IO 适配器** - 内置 Socket.IO 支持，带自动重连
 - **零依赖** - 仅需 WebSocket 库作为对等依赖
 - **类型安全消息** - 泛型类型实现编译时消息校验
 
@@ -149,6 +150,59 @@ sock.onmessage = (e) => {
 | 企业网络环境 | 降级到长轮询 |
 | WebSocket 连接不稳定 | 多种传输选项 |
 
+## Socket.IO 支持
+
+Socket.IO 提供实时双向事件通信，支持自动重连和 HTTP 降级。
+
+### 服务端 (socket.io)
+
+```typescript
+import { WebSocketJSONStream } from '@an-epiphany/websocket-json-stream'
+import { Server as SocketIOServer } from 'socket.io'
+import http from 'http'
+
+const httpServer = http.createServer()
+const io = new SocketIOServer(httpServer)
+
+io.on('connection', (socket) => {
+  // 使用 'socketio' 适配器
+  const stream = new WebSocketJSONStream(socket, 'socketio')
+
+  stream.on('data', (data) => {
+    stream.write({ echo: data })
+  })
+})
+
+httpServer.listen(8080)
+```
+
+### 客户端 (socket.io-client)
+
+```typescript
+import { io } from 'socket.io-client'
+
+const socket = io('http://localhost:8080')
+
+socket.on('connect', () => {
+  // 通过 'message' 事件发送 JSON（对应服务端的 WebSocketJSONStream）
+  socket.emit('message', JSON.stringify({ message: '通过 Socket.IO 发送！' }))
+})
+
+socket.on('message', (data: string) => {
+  const message = JSON.parse(data)
+  console.log('收到:', message)
+})
+```
+
+### 为什么选择 Socket.IO？
+
+| 场景 | 解决方案 |
+|------|----------|
+| 需要自动重连 | 内置重连和退避机制 |
+| WebSocket 不可用 | 自动降级到 HTTP 长轮询 |
+| 需要房间/命名空间支持 | 原生房间和命名空间 |
+| 跨浏览器兼容性 | 包含 polyfill 和降级方案 |
+
 ## API 参考
 
 ### 构造函数
@@ -159,8 +213,8 @@ new WebSocketJSONStream<T>(ws: AdaptableWebSocket, adapterType?: AdapterType)
 
 | 参数 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
-| `ws` | `AdaptableWebSocket` | - | WebSocket 或 SockJS 连接 |
-| `adapterType` | `'ws' \| 'sockjs-node' \| 'auto'` | `'ws'` | 适配器类型 |
+| `ws` | `AdaptableWebSocket` | - | WebSocket、SockJS 或 Socket.IO 连接 |
+| `adapterType` | `'ws' \| 'sockjs-node' \| 'socketio' \| 'auto'` | `'ws'` | 适配器类型 |
 | `T` | 泛型 | `unknown` | 消息类型 |
 
 ### 事件
@@ -220,12 +274,18 @@ import {
   adaptWebSocket,
   isWebSocketLike,
   isSockJSNodeConnection,
+  isSocketIOSocket,
   SockJSNodeAdapter,
+  SocketIOAdapter,
 } from '@an-epiphany/websocket-json-stream'
 
 // 类型检查
 if (isSockJSNodeConnection(conn)) {
   console.log('SockJS Node 连接')
+}
+
+if (isSocketIOSocket(socket)) {
+  console.log('Socket.IO 连接')
 }
 
 // 手动适配
@@ -251,13 +311,22 @@ interface SockJSNodeConnection {
   off(event: 'data' | 'close', listener: Function): this
 }
 
+interface SocketIOSocket {
+  readonly id: string
+  readonly connected: boolean
+  emit(event: string, ...args: unknown[]): this
+  on(event: string, listener: Function): this
+  off(event: string, listener: Function): this
+  disconnect(close?: boolean): this
+}
+
 interface StreamError extends Error {
   closeCode?: number
   closeReason?: string
 }
 
-type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection
-type AdapterType = 'ws' | 'sockjs-node' | 'auto'
+type AdaptableWebSocket = WebSocketLike | SockJSNodeConnection | SocketIOSocket
+type AdapterType = 'ws' | 'sockjs-node' | 'socketio' | 'auto'
 ```
 
 ## 许可证

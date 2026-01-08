@@ -9,13 +9,17 @@
     "basic:client": "tsx basic-client.ts",
     "sockjs:server": "tsx sockjs-server.ts",
     "sockjs:client": "tsx sockjs-client.ts",
+    "socketio:server": "tsx socketio-server.ts",
+    "socketio:client": "tsx socketio-client.ts",
     "typed": "tsx typed-messages.ts"
   },
   "dependencies": {
     "@an-epiphany/websocket-json-stream": "link:..",
     "ws": "^8.18.0",
     "sockjs": "^0.3.24",
-    "sockjs-client": "^1.6.1"
+    "sockjs-client": "^1.6.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
